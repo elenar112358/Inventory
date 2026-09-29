@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -13,7 +15,7 @@ from app.schemas import (
     ProductSKUStock,
     ProductsForecastRequest,
     ProductsForecastResponse,
-    AlertsResponse,
+    AlertsResponse, MovementsQueryResponse, ProductsAverageStock,
 )
 
 from app.repository import movements as movements_repository
@@ -264,13 +266,97 @@ def post_correction(db: Session, movement: MovementsPost) -> MovementsPostRespon
     )
 
 def get_movements(db: Session, query_params: MovementsRequest) -> MovementsResponse:
-    ...
+    if query_params.product_sku is not None:
+        product = movements_repository.get_product_by_sku(
+            db,
+            product_sku=query_params.product_sku,
+        )
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail=f'Товар с sku = "{query_params.product_sku}" не найден'
+            )
 
-def get_stock(db: Session) -> ProductsStock:
-    ...
+    if query_params.site_name is not None:
+        site = movements_repository.get_site_by_name(
+            db,
+            site_name=query_params.site_name,
+        )
+        if not site:
+            raise HTTPException(
+                status_code=404,
+                detail=f'Склад "{query_params.site_name}" не найден'
+            )
 
-def get_stock_by_sku(db: Session, sku: str) -> ProductSKUStock:
-    ...
+    total = movements_repository.get_total_movements(
+        db,
+        query_params=query_params,
+    )
+
+    movements: MovementsResponse = movements_repository.get_movements(
+        db,
+        query_params=query_params,
+        total=total,
+    )
+
+    return MovementsQueryResponse(
+        movements=movements,
+        date_from=query_params.date_from,
+        date_to=query_params.date_to,
+        limit=query_params.limit,
+        offset=query_params.offset,
+        total=total,
+    )
+
+"""
+Реализовать GET /api/stock — текущие остатки по позициям и объектам. Остаток
+вычисляется из движений и партий, а не хранится отдельным изменяемым полем. В
+ответе: остаток, средний расход в день за 90 дней, запас в днях и ближайший срок
+годности.
+"""
+
+def get_stock(db: Session) -> list[ProductsStock]:
+    date_now = date.today()
+    average_date_ago = date_now - timedelta(days=90)
+
+    stock: list[ProductsAverageStock] = movements_repository.get_stock_balance(db, average_date_ago)
+
+    res = []
+    for item in stock:
+        days = date_now - item.last_date + 1
+        average_consume = item.last_consume / days
+        stock_in_days = item.balance // average_consume
+
+        res.append(ProductsStock(
+            product_sku=item.product_sku,
+            site_name=item.site_name,
+            balance=item.balance,
+            average_consume=average_consume,
+            stock_in_days=stock_in_days,
+            expiry_date=item.expiry_date,
+        ))
+
+    return res
+
+
+"""
+Реализовать GET /api/stock/{sku} — детализация по позиции: остатки по объектам и по
+партиям со сроками годности, ценами поступления и номерами накладных.
+"""
+
+def get_stock_by_sku(db: Session, sku: str) -> list[ProductSKUStock]:
+    product = movements_repository.get_product_by_sku(
+        db,
+        product_sku=sku,
+    )
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail=f'Товар с sku = "{sku}" не найден'
+        )
+
+    return movements_repository.get_product_stock_balance(db, product.id)
+
 
 def get_forecast(db: Session, query_params: ProductsForecastRequest) -> ProductsForecastResponse:
     ...

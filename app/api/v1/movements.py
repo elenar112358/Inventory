@@ -72,7 +72,7 @@ def get_movements(
 
 @router.get(
     "/stock",
-    response_model=ProductsStock,
+    response_model=list[ProductsStock],
     summary="Текущие остатки по товарам и складам"
 )
 def get_stock(
@@ -87,7 +87,7 @@ def get_stock(
 
 @router.get(
     "/stock/{sku}",
-    response_model=ProductSKUStock,
+    response_model=list[ProductSKUStock],
     summary="Текущие остатки товара по складам и партиям"
 )
 def get_stock_by_sku(

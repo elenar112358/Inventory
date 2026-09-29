@@ -116,11 +116,20 @@ class ProductsStock(BaseModel):
     Реализовать GET /api/stock — текущие остатки по позициям и объектам. Остаток
     вычисляется из движений и партий, а не хранится отдельным изменяемым полем. В
     ответе: остаток, средний расход в день за 90 дней, запас в днях и ближайший срок
-    годности. balance, average daily consumption over 90 days, stock in days, and nearest expiration date
+    годности. 
     """
+
+class ProductsAverageStock(BaseModel):
+    product_sku: str
+    site_name: str
+    balance: Decimal
+    last_consume: Decimal
+    last_date: date
+    expiry_date: date | None = None
 
 
 class ProductSKUStock(BaseModel):
+    product_sku: str
     site_name: str
     batch_date: date
     batch_number: str
