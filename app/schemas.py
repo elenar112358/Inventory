@@ -1,6 +1,5 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -21,42 +20,16 @@ class MovementsPost(BaseModel):
     document_type: DocTypes
 
     product_sku: str = Field(max_length=20)
-    product_name: str = Field(max_length=100)
+    quantity: Decimal
 
     site_name: str = Field(max_length=30)
-
-    quantity: Decimal
-    price: Decimal
-
-    batch_date: date
-    batch_number: str = Field(max_length=20)
-    expiry_date: date | None
-
-
-    @field_validator('price')
-    @classmethod
-    def validate_price(cls, value: Decimal) -> Decimal:
-        if value < 0:
-            raise ValueError('Цена должна быть неотрицательной')
-
-        return value.quantize(
-            Decimal("0.01"),
-            rounding=ROUND_HALF_UP,
-        )
+    batch_number: str | None = Field(max_length=20)
 
     @field_validator('document_date')
     @classmethod
     def validate_document_date(cls, value: date) -> date:
         if value > datetime.now(timezone.utc).date():
             raise ValueError('Дата документа не может быть в будущем')
-
-        return value
-
-    @field_validator('batch_date')
-    @classmethod
-    def validate_batch_date(cls, value: date) -> date:
-        if value > datetime.now(timezone.utc).date():
-            raise ValueError('Дата партии не может быть в будущем')
 
         return value
 
@@ -75,6 +48,16 @@ class MovementsPost(BaseModel):
 
         return self
 
+    @model_validator(mode="after")
+    def validate_batch_number(self):
+        if self.document_type == DocTypes.CONSUME:
+            self.batch_number = None
+        else:
+            if self.batch_number is None:
+                raise ValueError('Необходимо указать партию товара')
+
+        return self
+
 """
 Добавить проверки: неизвестный SKU или объект — 404; 
 количество меньше или равно нулю для receipt и consume — 422; 
@@ -84,8 +67,7 @@ class MovementsPost(BaseModel):
 """
 
 class MovementsPostResponse(BaseModel):
-    id: UUID
-    title: str = Field(max_length=255)
+    list_id: list[UUID]
     product_quantity: Decimal
     site_quantity: Decimal
 

@@ -17,13 +17,20 @@ from app.enums import DocTypes
 
 router = APIRouter()
 
+"""
+Реализовать эндпоинт POST /api/movements: принимает запись движения товара (дата,
+SKU, объект, тип операции receipt / consume / writeoff / return / correction, количество,
+партия, номер документа), сохраняет её в БД и возвращает идентификатор записи и
+пересчитанный остаток по позиции и объекту.
+"""
+
 @router.post(
     "/movements",
     response_model=MovementsPostResponse,
     summary="Запись движения товара"
 )
-def add_obligation(
-        movement: MovementsPost,
+def add_movements(
+        movement: Annotated[MovementsPost, Query()],
         db: Session = Depends(get_db)
 ):
     match movement.document_type:
