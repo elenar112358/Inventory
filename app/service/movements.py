@@ -1,10 +1,9 @@
 from datetime import date, timedelta
+from uuid import UUID
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-
-from uuid import UUID
-from decimal import Decimal
 
 from app.schemas import (
     MovementsPost,
@@ -58,7 +57,15 @@ def get_movements_objects(db: Session, movement: MovementsPost):
 
     return product, site, batch
 
+def check_document_exists(db: Session, movement: MovementsPost):
+    if movements_repository.document_exists(db, movement.document_number):
+        raise HTTPException(
+            status_code=409,
+            detail=f'Документ "{movement.document_number}" уже существует'
+        )
+
 def post_receipt(db: Session, movement: MovementsPost) -> MovementsPostResponse:
+    check_document_exists(db, movement)
     product, site, batch = get_movements_objects(db, movement)
 
     document = movements_repository.post_receipt(
@@ -89,6 +96,7 @@ def post_receipt(db: Session, movement: MovementsPost) -> MovementsPostResponse:
     )
 
 def post_consume(db: Session, movement: MovementsPost) -> MovementsPostResponse:
+    check_document_exists(db, movement)
     product, site = get_movements_objects(db, movement)
 
     site_quantity = movements_repository.get_product_quantity_by_site(
@@ -113,7 +121,7 @@ def post_consume(db: Session, movement: MovementsPost) -> MovementsPostResponse:
         quantity=movement.quantity,
     )
 
-    docs_id = movements_repository.post_consume(
+    docs_id: list[UUID] = movements_repository.post_consume(
         db,
         document_date=movement.document_date,
         number=movement.document_number,
@@ -140,11 +148,11 @@ def post_consume(db: Session, movement: MovementsPost) -> MovementsPostResponse:
     )
 
 def post_writeoff(db: Session, movement: MovementsPost) -> MovementsPostResponse:
+    check_document_exists(db, movement)
     product, site, batch = get_movements_objects(db, movement)
 
     batch_quantity = movements_repository.get_batch_quantity_by_site(
         db,
-        product_id=product.id,
         batch_id=batch.id,
         site_id=site.id,
     )
@@ -185,6 +193,7 @@ def post_writeoff(db: Session, movement: MovementsPost) -> MovementsPostResponse
     )
 
 def post_return(db: Session, movement: MovementsPost) -> MovementsPostResponse:
+    check_document_exists(db, movement)
     product, site, batch = get_movements_objects(db, movement)
 
     document = movements_repository.post_receipt(
@@ -215,11 +224,11 @@ def post_return(db: Session, movement: MovementsPost) -> MovementsPostResponse:
     )
 
 def post_correction(db: Session, movement: MovementsPost) -> MovementsPostResponse:
+    check_document_exists(db, movement)
     product, site, batch = get_movements_objects(db, movement)
 
     batch_quantity = movements_repository.get_batch_quantity_by_site(
         db,
-        product_id=product.id,
         batch_id=batch.id,
         site_id=site.id,
     )
@@ -293,10 +302,9 @@ def get_movements(db: Session, query_params: MovementsRequest) -> MovementsRespo
         query_params=query_params,
     )
 
-    movements: MovementsResponse = movements_repository.get_movements(
+    movements: list[MovementsResponse] = movements_repository.get_movements(
         db,
         query_params=query_params,
-        total=total,
     )
 
     return MovementsQueryResponse(

@@ -33,6 +33,8 @@ def add_movements(
         movement: Annotated[MovementsPost, Query()],
         db: Session = Depends(get_db)
 ):
+    res = None
+
     match movement.document_type:
         case DocTypes.RECEIPT:
             res = movements_service.post_receipt(db, movement)
