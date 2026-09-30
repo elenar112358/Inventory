@@ -23,7 +23,7 @@ class MovementsPost(BaseModel):
     quantity: Decimal
 
     site_name: str = Field(max_length=30)
-    batch_number: str | None = Field(max_length=20)
+    batch_number: str | None = Field(default=None, max_length=20)
 
     @field_validator('document_date')
     @classmethod
@@ -73,8 +73,8 @@ class MovementsPostResponse(BaseModel):
 
 
 class MovementsRequest(BaseModel):
-    product_sku: str | None = Field(max_length=20)
-    site_name: str | None = Field(max_length=30)
+    product_sku: str | None = Field(default=None, max_length=20)
+    site_name: str | None = Field(default=None, max_length=30)
     document_type: DocTypes | None = None
     date_from: date | None = None
     date_to: date | None = None
@@ -89,8 +89,8 @@ class MovementsRequest(BaseModel):
 
 
 class MovementsResponse(BaseModel):
-    product_sku: str | None = Field(max_length=20)
-    site_name: str | None = Field(max_length=30)
+    product_sku: str | None = Field(default=None, max_length=20)
+    site_name: str | None = Field(default=None, max_length=30)
     document_type: DocTypes | None = None
     quantity: Decimal
 
@@ -108,9 +108,14 @@ class ProductsStock(BaseModel):
     product_sku: str
     site_name: str
     balance: Decimal
-    average_consume: Decimal
-    stock_in_days: int
+    average_consume: Decimal | None = None
+    stock_in_days: int | None = None
     expiry_date: date | None = None
+
+    @field_validator("average_consume")
+    @classmethod
+    def round_avg(cls, v: Decimal | None) -> Decimal | None:
+        return v.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP) if v is not None else v
 
     """
     Реализовать GET /api/stock — текущие остатки по позициям и объектам. Остаток

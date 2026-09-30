@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.responses import Response
 
 from app.api.v1.movements import router as movements_router
 

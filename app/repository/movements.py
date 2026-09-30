@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select, exists, func, case
+from sqlalchemy import select, exists, func, case, and_
 from sqlalchemy.orm import Session
 
 from app.enums import DocTypes
@@ -212,11 +212,117 @@ def get_movements(db: Session, query_params: MovementsRequest) -> list[Movements
 
 
 def get_stock_balance(db: Session, average_date_ago: date) -> list[ProductsAverageStock]:
-    ...
+    batch_balance = (
+        select(
+            Document.batch_id,
+            Document.site_id,
+            func.sum(Document.quantity).label("batch_balance"),
+        )
+        .group_by(Document.batch_id, Document.site_id)
+        .subquery()
+    )
 
+    query = (
+        select(
+            Product.sku.label("product_sku"),
+            Site.name.label("site_name"),
+            func.coalesce(func.sum(Document.quantity), Decimal("0")).label("balance"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Document.document_date >= average_date_ago,
+                                Document.document_type == DocTypes.CONSUME,
+                            ),
+                            -Document.quantity,
+                        ),
+                        else_=0,
+                    )
+                ),
+                Decimal("0"),
+            ).label("last_consume"),
+            func.greatest(
+                func.min(Document.document_date),
+                average_date_ago,
+            ).label("last_date"),
+            func.min(
+                case(
+                    (batch_balance.c.batch_balance != 0, Batch.expiry_date),
+                    else_=None,
+                )
+            ).label("expiry_date"),
+        )
+        .select_from(Document)
+        .join(Batch, Document.batch_id == Batch.id)
+        .join(Product, Batch.product_id == Product.id)
+        .join(Site, Document.site_id == Site.id)
+        .join(
+            batch_balance,
+            and_(
+                batch_balance.c.batch_id == Document.batch_id,
+                batch_balance.c.site_id == Document.site_id,
+            ),
+        )
+        .group_by(Product.sku, Site.name)
+    )
+
+
+    return [ProductsAverageStock(**document) for document in db.execute(query).mappings().all()]
+
+"""
+class ProductsAverageStock(BaseModel):
+    product_sku: str
+    site_name: str
+    balance: Decimal
+    last_consume: Decimal
+    last_date: date
+    expiry_date: date | None = None
+"""
+
+
+"""
+Реализовать GET /api/stock/{sku} — детализация по позиции: остатки по объектам и по
+партиям со сроками годности, ценами поступления и номерами накладных.
+"""
 def get_product_stock_balance(db: Session, product_id: UUID) -> list[ProductSKUStock]:
-    ...
+    query = (
+        select(
+            Product.sku.label("product_sku"),
+            Site.name.label("site_name"),
+            Batch.batch_date.label("batch_date"),
+            Batch.number.label("batch_number"),
+            Batch.expiry_date.label("expiry_date"),
+            Batch.price.label("price"),
+            func.coalesce(func.sum(Document.quantity), Decimal("0")).label("balance")
+        )
+        .select_from(Document)
+        .where(Product.id == product_id)
+        .join(Batch, Document.batch_id == Batch.id)
+        .join(Product, Batch.product_id == Product.id)
+        .join(Site, Document.site_id == Site.id)
+        .group_by(
+            Product.sku,
+            Site.name,
+            Batch.id,
+            Batch.number,
+            Batch.batch_date,
+            Batch.expiry_date,
+            Batch.price,
+        )
+    )
+
+    return [ProductSKUStock(**document) for document in db.execute(query).mappings().all()]
 
 
-
+"""
+class ProductSKUStock(BaseModel):
+    product_sku: str
+    site_name: str
+    batch_date: date
+    batch_number: str
+    expiry_date: date
+    balance: Decimal
+    price: Decimal
+"""
 

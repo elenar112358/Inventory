@@ -28,7 +28,7 @@ def get_movements_objects(db: Session, movement: MovementsPost):
     if not product:
         raise HTTPException(
             status_code=404,
-            detail=f'Товар с sku = "{movement.product_sku}" не найден'
+            detail=f"Товар с sku = '{movement.product_sku}' не найден"
         )
 
     site = movements_repository.get_site_by_name(
@@ -38,7 +38,7 @@ def get_movements_objects(db: Session, movement: MovementsPost):
     if not site:
         raise HTTPException(
             status_code=404,
-            detail=f'Склад "{movement.site_name}" не найден'
+            detail=f"Склад '{movement.site_name}' не найден"
         )
 
     if movement.batch_number is None:
@@ -52,7 +52,7 @@ def get_movements_objects(db: Session, movement: MovementsPost):
     if not batch:
         raise HTTPException(
             status_code=404,
-            detail=f'Партия "{movement.batch_number}" для товара с sku = "{movement.product_sku}" не найдена'
+            detail=f"Партия '{movement.batch_number}' для товара с sku = '{movement.product_sku}' не найдена"
         )
 
     return product, site, batch
@@ -61,7 +61,7 @@ def check_document_exists(db: Session, movement: MovementsPost):
     if movements_repository.document_exists(db, movement.document_number):
         raise HTTPException(
             status_code=409,
-            detail=f'Документ "{movement.document_number}" уже существует'
+            detail=f"Документ '{movement.document_number}' уже существует"
         )
 
 def post_receipt(db: Session, movement: MovementsPost) -> MovementsPostResponse:
@@ -109,8 +109,8 @@ def post_consume(db: Session, movement: MovementsPost) -> MovementsPostResponse:
         raise HTTPException(
             status_code=422,
             detail=(
-                f'Для товара с sku = "{movement.product_sku}" требуется '
-                f'{movement.quantity}{product.unit}, доступно {site_quantity}{product.unit}'
+                f"Для товара с sku = '{movement.product_sku}' требуется "
+                f"{movement.quantity}{product.unit}, доступно {site_quantity}{product.unit}"
             ),
         )
 
@@ -161,8 +161,8 @@ def post_writeoff(db: Session, movement: MovementsPost) -> MovementsPostResponse
         raise HTTPException(
             status_code=422,
             detail=(
-                f'Для товара с sku = "{movement.product_sku}" партии "{batch.number}" требуется '
-                f'{movement.quantity}{product.unit}, доступно {batch_quantity}{product.unit}'
+                f"Для товара с sku = '{movement.product_sku}' партии '{batch.number}' требуется "
+                f"{movement.quantity}{product.unit}, доступно {batch_quantity}{product.unit}"
             ),
         )
 
@@ -283,7 +283,7 @@ def get_movements(db: Session, query_params: MovementsRequest) -> MovementsRespo
         if not product:
             raise HTTPException(
                 status_code=404,
-                detail=f'Товар с sku = "{query_params.product_sku}" не найден'
+                detail=f"Товар с sku = '{query_params.product_sku}' не найден"
             )
 
     if query_params.site_name is not None:
@@ -294,7 +294,7 @@ def get_movements(db: Session, query_params: MovementsRequest) -> MovementsRespo
         if not site:
             raise HTTPException(
                 status_code=404,
-                detail=f'Склад "{query_params.site_name}" не найден'
+                detail=f"Склад '{query_params.site_name}' не найден"
             )
 
     total = movements_repository.get_total_movements(
@@ -331,9 +331,9 @@ def get_stock(db: Session) -> list[ProductsStock]:
 
     res = []
     for item in stock:
-        days = date_now - item.last_date + 1
+        days = (date_now - item.last_date).days + 1
         average_consume = item.last_consume / days
-        stock_in_days = item.balance // average_consume
+        stock_in_days = item.balance // average_consume if average_consume != 0 else None
 
         res.append(ProductsStock(
             product_sku=item.product_sku,
@@ -360,7 +360,7 @@ def get_stock_by_sku(db: Session, sku: str) -> list[ProductSKUStock]:
     if not product:
         raise HTTPException(
             status_code=404,
-            detail=f'Товар с sku = "{sku}" не найден'
+            detail=f"Товар с sku = '{sku}' не найден"
         )
 
     return movements_repository.get_product_stock_balance(db, product.id)
